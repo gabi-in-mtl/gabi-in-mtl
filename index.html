@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#1a1f24" />
+    <title>Photos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Outfit:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <!-- Password gate -->
+    <section id="gate" class="gate" aria-labelledby="gate-title">
+      <div class="gate__panel">
+        <p class="gate__brand">Photos</p>
+        <h1 id="gate-title" class="gate__title">Enter password</h1>
+        <p class="gate__hint">This gallery is private. Enter the shared password to continue.</p>
+        <form id="gate-form" class="gate__form" autocomplete="off">
+          <label class="visually-hidden" for="password-input">Password</label>
+          <input
+            id="password-input"
+            class="gate__input"
+            type="password"
+            name="password"
+            placeholder="Password"
+            required
+            autofocus
+            enterkeyhint="go"
+          />
+          <button type="submit" class="gate__submit">Open gallery</button>
+          <p id="gate-error" class="gate__error" role="alert" hidden>
+            Incorrect password. Try again.
+          </p>
+        </form>
+      </div>
+    </section>
+
+    <!-- Gallery (shown after unlock) -->
+    <div id="app" class="app" hidden>
+      <header class="topbar">
+        <div class="topbar__brand">
+          <span class="topbar__title">Photos</span>
+        </div>
+        <button
+          type="button"
+          id="refresh-btn"
+          class="topbar__refresh"
+          aria-label="Refresh photos"
+        >
+          <svg class="icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7c2.76 0 5 2.24 5 5a5 5 0 0 1-8.9 3.1L6.7 16.5A7 7 0 0 0 19 12c0-1.93-.78-3.68-2.05-4.95zM6 12c0-1.48.52-2.84 1.38-3.9L8.7 6.7A6.97 6.97 0 0 0 5 12a7 7 0 0 0 11.3 5.5l-1.4-1.4A5 5 0 0 1 6 12z"
+            />
+          </svg>
+          <span class="topbar__refresh-label">Refresh</span>
+        </button>
+      </header>
+
+      <main class="main">
+        <div id="status" class="status" role="status" aria-live="polite">
+          Loading photos…
+        </div>
+        <div id="gallery" class="gallery"></div>
+      </main>
+
+      <footer class="footer">
+        <a
+          id="repo-link"
+          class="footer__link"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          >View on GitHub</a
+        >
+      </footer>
+    </div>
+
+    <!-- Lightbox -->
+    <div
+      id="lightbox"
+      class="lightbox"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo viewer"
+    >
+      <button type="button" id="lightbox-close" class="lightbox__close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M18.3 5.71 12 12.01l-6.3-6.3-1.4 1.42 6.29 6.3-6.3 6.29 1.42 1.4 6.3-6.29 6.29 6.3 1.4-1.42-6.29-6.3 6.3-6.29z"
+          />
+        </svg>
+      </button>
+      <button type="button" id="lightbox-prev" class="lightbox__nav lightbox__nav--prev" aria-label="Previous photo">
+        <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+          <path fill="currentColor" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+        </svg>
+      </button>
+      <button type="button" id="lightbox-next" class="lightbox__nav lightbox__nav--next" aria-label="Next photo">
+        <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+          <path fill="currentColor" d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+        </svg>
+      </button>
+      <div class="lightbox__stage">
+        <img id="lightbox-image" class="lightbox__image" alt="" />
+        <div class="lightbox__meta">
+          <p id="lightbox-caption" class="lightbox__caption"></p>
+          <div id="lightbox-tags" class="lightbox__tags"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
