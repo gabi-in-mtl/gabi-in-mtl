@@ -57,6 +57,17 @@ window.SITE_CONFIG = {
 4. On the website, open the photo: text appears under the image; `#tags` become chips.
 5. Click **Refresh** on the site after editing descriptions so new text loads.
 
+### Sort order (when the photo was taken)
+
+The gallery sorts by the camera **Date taken** from the image EXIF metadata (what the iPhone stores), not by upload time. Google Drive exposes this as `imageMediaMetadata.time`.
+
+If a file has no EXIF date (or Drive has not processed it yet), the site falls back to Drive’s file created time.
+
+Tips:
+- Prefer **JPEG** when possible; **HEIC** sometimes has incomplete metadata in Drive’s API.
+- After uploading, wait a minute and hit **Refresh** so Drive can finish reading EXIF.
+- In Drive, open a file → Details: if you see camera/date info there, the site should be able to use it.
+
 ---
 
 ## 3. Google Cloud API key

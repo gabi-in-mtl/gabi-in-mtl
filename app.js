@@ -131,28 +131,62 @@
   }
 
   /**
+   * Parse Drive EXIF / ISO timestamps into a Date.
+   * Drive often returns EXIF as "YYYY:MM:DD HH:MM:SS" which many browsers
+   * (notably Safari) reject unless converted to ISO-like form.
+   * @param {unknown} value
+   * @returns {Date | null}
+   */
+  function parseTakenAt(value) {
+    if (value == null || value === "") return null;
+    const s = String(value).trim();
+
+    // EXIF DateTime / DateTimeOriginal: "2024:07:15 14:30:45" or with T
+    const exif = s.match(
+      /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/
+    );
+    if (exif) {
+      const iso = `${exif[1]}-${exif[2]}-${exif[3]}T${exif[4]}:${exif[5]}:${exif[6]}`;
+      const parsed = new Date(iso);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+
+    // Date-only EXIF: "2024:07:15"
+    const exifDate = s.match(/^(\d{4}):(\d{2}):(\d{2})$/);
+    if (exifDate) {
+      const parsed = new Date(
+        `${exifDate[1]}-${exifDate[2]}-${exifDate[3]}T12:00:00`
+      );
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+
+    // Already ISO / RFC 3339 (Drive createdTime, etc.)
+    const parsed = new Date(s);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+
+    return null;
+  }
+
+  /**
+   * Prefer camera "taken at" (EXIF) over Drive upload time.
    * @param {object} file
    * @returns {Date}
    */
   function photoDate(file) {
-    const metaTime = file.imageMediaMetadata && file.imageMediaMetadata.time;
-    if (metaTime) {
-      const normalized = String(metaTime).replace(
-        /^(\d{4}):(\d{2}):(\d{2})/,
-        "$1-$2-$3"
-      );
-      const parsed = new Date(normalized);
-      if (!Number.isNaN(parsed.getTime())) return parsed;
-    }
-    return new Date(file.createdTime || file.modifiedTime || Date.now());
+    const taken =
+      parseTakenAt(file.imageMediaMetadata && file.imageMediaMetadata.time) ||
+      parseTakenAt(file.createdTime) ||
+      parseTakenAt(file.modifiedTime);
+    return taken || new Date();
   }
 
   async function fetchDrivePhotos() {
     const folderId = config.driveFolderId;
     const apiKey = config.googleApiKey;
     const q = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`;
+    // Request EXIF time explicitly — this is when the photo was taken on the phone
     const fields =
-      "nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,description,imageMediaMetadata)";
+      "nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,description,imageMediaMetadata(time,width,height,rotation))";
 
     /** @type {Photo[]} */
     const all = [];
@@ -164,7 +198,6 @@
         key: apiKey,
         pageSize: "1000",
         fields,
-        orderBy: "createdTime desc",
         supportsAllDrives: "true",
         includeItemsFromAllDrives: "true",
       });
@@ -199,6 +232,7 @@
       pageToken = data.nextPageToken || "";
     } while (pageToken);
 
+    // Newest taken-at first (EXIF when available)
     all.sort((a, b) => b.date.getTime() - a.date.getTime());
     return all;
   }
