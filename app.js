@@ -324,19 +324,22 @@
   }
 
   /**
+   * TEMP: group by day (e.g. "July 23, 2026") to verify sort order.
+   * Roll back to month-only: key = YYYY-MM, formatter = { month: "long", year: "numeric" }.
    * @param {Photo[]} list
    */
   function groupByMonth(list) {
     const groups = new Map();
     const formatter = new Intl.DateTimeFormat(undefined, {
       month: "long",
+      day: "numeric",
       year: "numeric",
     });
 
     for (const photo of list) {
       const key = `${photo.date.getFullYear()}-${String(
         photo.date.getMonth() + 1
-      ).padStart(2, "0")}`;
+      ).padStart(2, "0")}-${String(photo.date.getDate()).padStart(2, "0")}`;
       const label = formatter.format(photo.date);
       if (!groups.has(key)) {
         groups.set(key, { label, photos: [] });
