@@ -155,7 +155,9 @@ Open `http://localhost:8080` and unlock with your password.
 
 - Password gate (SHA-256 hash in config)
 - Photos-style timeline grouped by month
+- Filter by tags from Drive descriptions (multi-select; **All** clears)
 - Tap a photo to open a large lightbox with caption/tags
+- Tap a tag in the lightbox to filter by it
 - Swipe or arrow keys to move between photos
 - **Refresh** reloads Drive without re-entering the password
 - Responsive layout for phone, tablet, and desktop

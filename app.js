@@ -12,6 +12,7 @@
     app: document.getElementById("app"),
     status: document.getElementById("status"),
     gallery: document.getElementById("gallery"),
+    tagFilters: document.getElementById("tag-filters"),
     refreshBtn: document.getElementById("refresh-btn"),
     repoLink: document.getElementById("repo-link"),
     lightbox: document.getElementById("lightbox"),
@@ -25,6 +26,8 @@
 
   /** @type {Photo[]} */
   let photos = [];
+  /** @type {Set<string>} lowercase tag keys currently selected */
+  let activeTags = new Set();
   let lightboxIndex = -1;
   let touchStartX = 0;
   let touchStartY = 0;
@@ -34,6 +37,8 @@
    * @property {string} id
    * @property {string} name
    * @property {string} description
+   * @property {string} caption
+   * @property {string[]} tags
    * @property {Date} date
    * @property {string} thumbUrl
    * @property {string} fullUrl
@@ -98,9 +103,14 @@
 
     const tagRe = /#([\p{L}\p{N}_-]+)/gu;
     const tags = [];
+    const seen = new Set();
     let match;
     while ((match = tagRe.exec(raw)) !== null) {
-      tags.push(match[1]);
+      const tag = match[1];
+      const key = tag.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      tags.push(tag);
     }
 
     const caption = raw
@@ -126,7 +136,6 @@
   function photoDate(file) {
     const metaTime = file.imageMediaMetadata && file.imageMediaMetadata.time;
     if (metaTime) {
-      // Drive EXIF times are often "YYYY:MM:DD HH:MM:SS"
       const normalized = String(metaTime).replace(
         /^(\d{4}):(\d{2}):(\d{2})/,
         "$1-$2-$3"
@@ -173,10 +182,13 @@
       }
 
       for (const file of data.files || []) {
+        const { caption, tags } = parseDescription(file.description || "");
         all.push({
           id: file.id,
           name: file.name || "Photo",
           description: file.description || "",
+          caption,
+          tags,
           date: photoDate(file),
           thumbUrl: driveImageUrl(file.id, 400),
           fullUrl: driveImageUrl(file.id, 2000),
@@ -190,9 +202,94 @@
     return all;
   }
 
+  /** @returns {Photo[]} */
+  function getFilteredPhotos() {
+    if (!activeTags.size) return photos;
+    return photos.filter((photo) =>
+      photo.tags.some((tag) => activeTags.has(tag.toLowerCase()))
+    );
+  }
+
+  /**
+   * Unique tags across all photos, sorted A–Z (case-insensitive).
+   * @returns {string[]}
+   */
+  function collectAllTags() {
+    const byKey = new Map();
+    for (const photo of photos) {
+      for (const tag of photo.tags) {
+        const key = tag.toLowerCase();
+        if (!byKey.has(key)) byKey.set(key, tag);
+      }
+    }
+    return [...byKey.values()].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+  }
+
+  /**
+   * Drop selected tags that no longer exist after a refresh.
+   */
+  function pruneActiveTags() {
+    const available = new Set(
+      collectAllTags().map((tag) => tag.toLowerCase())
+    );
+    for (const key of [...activeTags]) {
+      if (!available.has(key)) activeTags.delete(key);
+    }
+  }
+
+  function renderTagFilters() {
+    const tags = collectAllTags();
+    els.tagFilters.replaceChildren();
+
+    if (!tags.length) {
+      els.tagFilters.hidden = true;
+      return;
+    }
+
+    els.tagFilters.hidden = false;
+
+    const allBtn = document.createElement("button");
+    allBtn.type = "button";
+    allBtn.className = "filter-chip";
+    allBtn.textContent = "All";
+    allBtn.setAttribute("aria-pressed", activeTags.size === 0 ? "true" : "false");
+    if (activeTags.size === 0) allBtn.classList.add("is-active");
+    allBtn.addEventListener("click", () => {
+      activeTags.clear();
+      applyFilter();
+    });
+    els.tagFilters.appendChild(allBtn);
+
+    for (const tag of tags) {
+      const key = tag.toLowerCase();
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "filter-chip";
+      btn.textContent = `#${tag}`;
+      const isActive = activeTags.has(key);
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+      if (isActive) btn.classList.add("is-active");
+      btn.addEventListener("click", () => toggleTag(key));
+      els.tagFilters.appendChild(btn);
+    }
+  }
+
+  function toggleTag(key) {
+    if (activeTags.has(key)) activeTags.delete(key);
+    else activeTags.add(key);
+    applyFilter();
+  }
+
+  function applyFilter() {
+    if (!els.lightbox.hidden) closeLightbox();
+    renderTagFilters();
+    renderGallery();
+  }
+
   /**
    * @param {Photo[]} list
-   * @returns {Map<string, Photo[]>}
    */
   function groupByMonth(list) {
     const groups = new Map();
@@ -235,8 +332,15 @@
       return;
     }
 
+    const visible = getFilteredPhotos();
+
+    if (!visible.length) {
+      setStatus("No photos match the selected tags.");
+      return;
+    }
+
     setStatus("");
-    const groups = groupByMonth(photos);
+    const groups = groupByMonth(visible);
     let delayIndex = 0;
 
     for (const [, group] of groups) {
@@ -252,7 +356,7 @@
       grid.className = "month__grid";
 
       for (const photo of group.photos) {
-        const globalIndex = photos.indexOf(photo);
+        const filteredIndex = visible.indexOf(photo);
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "thumb";
@@ -275,7 +379,7 @@
           { once: true }
         );
 
-        btn.addEventListener("click", () => openLightbox(globalIndex));
+        btn.addEventListener("click", () => openLightbox(filteredIndex));
         btn.appendChild(img);
         grid.appendChild(btn);
       }
@@ -293,6 +397,7 @@
         true
       );
       els.gallery.replaceChildren();
+      els.tagFilters.hidden = true;
       return;
     }
 
@@ -301,11 +406,14 @@
 
     try {
       photos = await fetchDrivePhotos();
+      pruneActiveTags();
+      renderTagFilters();
       renderGallery();
     } catch (err) {
       console.error(err);
       photos = [];
       els.gallery.replaceChildren();
+      els.tagFilters.hidden = true;
       setStatus(
         err instanceof Error
           ? err.message
@@ -318,7 +426,8 @@
   }
 
   function openLightbox(index) {
-    if (index < 0 || index >= photos.length) return;
+    const visible = getFilteredPhotos();
+    if (index < 0 || index >= visible.length) return;
     lightboxIndex = index;
     els.lightbox.hidden = false;
     document.body.style.overflow = "hidden";
@@ -333,25 +442,31 @@
   }
 
   function updateLightbox() {
-    const photo = photos[lightboxIndex];
+    const visible = getFilteredPhotos();
+    const photo = visible[lightboxIndex];
     if (!photo) return;
-
-    const { caption, tags } = parseDescription(photo.description);
 
     els.lightboxImage.src = photo.fullUrl;
     els.lightboxImage.alt = photo.name;
-    els.lightboxCaption.textContent = caption || "";
+    els.lightboxCaption.textContent = photo.caption || "";
 
     els.lightboxTags.replaceChildren();
-    for (const tag of tags) {
-      const chip = document.createElement("span");
+    for (const tag of photo.tags) {
+      const chip = document.createElement("button");
+      chip.type = "button";
       chip.className = "tag";
       chip.textContent = `#${tag}`;
+      chip.setAttribute("aria-label", `Filter by ${tag}`);
+      chip.addEventListener("click", () => {
+        activeTags.clear();
+        activeTags.add(tag.toLowerCase());
+        applyFilter();
+      });
       els.lightboxTags.appendChild(chip);
     }
 
     els.lightboxPrev.disabled = lightboxIndex <= 0;
-    els.lightboxNext.disabled = lightboxIndex >= photos.length - 1;
+    els.lightboxNext.disabled = lightboxIndex >= visible.length - 1;
   }
 
   function showPrev() {
@@ -362,7 +477,8 @@
   }
 
   function showNext() {
-    if (lightboxIndex < photos.length - 1) {
+    const visible = getFilteredPhotos();
+    if (lightboxIndex < visible.length - 1) {
       lightboxIndex += 1;
       updateLightbox();
     }
