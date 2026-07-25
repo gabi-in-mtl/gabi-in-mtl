@@ -123,9 +123,15 @@ body {
   gap: 0.75rem;
 }
 
+.gate__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .gate__input {
   width: 100%;
-  padding: 0.9rem 1rem;
+  padding: 0.9rem 3rem 0.9rem 1rem;
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   background: rgba(18, 22, 26, 0.55);
@@ -139,6 +145,38 @@ body {
 .gate__input:focus {
   border-color: rgba(126, 184, 162, 0.55);
   box-shadow: 0 0 0 3px rgba(126, 184, 162, 0.18);
+}
+
+.gate__toggle {
+  position: absolute;
+  right: 0.35rem;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gate__toggle:hover,
+.gate__toggle:focus-visible {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.gate__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.gate__toggle[aria-pressed="true"] {
+  color: var(--accent);
 }
 
 .gate__submit {

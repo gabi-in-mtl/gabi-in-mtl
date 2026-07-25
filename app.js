@@ -8,6 +8,7 @@
     gate: document.getElementById("gate"),
     gateForm: document.getElementById("gate-form"),
     passwordInput: document.getElementById("password-input"),
+    passwordToggle: document.getElementById("password-toggle"),
     gateError: document.getElementById("gate-error"),
     app: document.getElementById("app"),
     status: document.getElementById("status"),
@@ -484,6 +485,26 @@
     }
   }
 
+  function setPasswordVisible(visible) {
+    els.passwordInput.type = visible ? "text" : "password";
+    els.passwordToggle.setAttribute("aria-pressed", visible ? "true" : "false");
+    els.passwordToggle.setAttribute(
+      "aria-label",
+      visible ? "Hide password" : "Show password"
+    );
+
+    const showIcon = els.passwordToggle.querySelector(".gate__toggle-icon--show");
+    const hideIcon = els.passwordToggle.querySelector(".gate__toggle-icon--hide");
+    if (showIcon) showIcon.hidden = visible;
+    if (hideIcon) hideIcon.hidden = !visible;
+  }
+
+  function togglePasswordVisibility() {
+    const visible = els.passwordInput.type === "password";
+    setPasswordVisible(visible);
+    els.passwordInput.focus();
+  }
+
   async function handleUnlock(event) {
     event.preventDefault();
     els.gateError.hidden = true;
@@ -541,6 +562,7 @@
 
   function bindEvents() {
     els.gateForm.addEventListener("submit", handleUnlock);
+    els.passwordToggle.addEventListener("click", togglePasswordVisibility);
     els.refreshBtn.addEventListener("click", () =>
       loadGallery({ spinning: true })
     );
