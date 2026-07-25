@@ -22,11 +22,11 @@
     <!-- Password gate -->
     <section id="gate" class="gate" aria-labelledby="gate-title">
       <div class="gate__panel">
-        <p class="gate__brand">Photos</p>
-        <h1 id="gate-title" class="gate__title">Enter password</h1>
+        <p class="gate__brand">Gabi's Photo Gallerie</p>
+        <h1 id="gate-title" class="gate__title">Passwort eingeben</h1>
         <p class="gate__hint">Gib das korrekte Passwort ein, um die Galerie zu öffnen.</p>
         <form id="gate-form" class="gate__form" autocomplete="off">
-          <label class="visually-hidden" for="password-input">Password</label>
+          <label class="visually-hidden" for="password-input">Passwort</label>
           <div class="gate__field">
             <input
               id="password-input"
@@ -99,7 +99,7 @@
           hidden
         ></div>
         <div id="status" class="status" role="status" aria-live="polite">
-          Loading photos…
+          Photos werden geladen…
         </div>
         <div id="gallery" class="gallery"></div>
       </main>
@@ -145,6 +145,22 @@
       </button>
       <div class="lightbox__stage">
         <img id="lightbox-image" class="lightbox__image" alt="" />
+        <video
+          id="lightbox-video"
+          class="lightbox__video"
+          controls
+          playsinline
+          preload="metadata"
+          hidden
+        ></video>
+        <iframe
+          id="lightbox-embed"
+          class="lightbox__embed"
+          title="Video"
+          allow="autoplay; encrypted-media"
+          allowfullscreen
+          hidden
+        ></iframe>
         <div class="lightbox__meta">
           <p id="lightbox-caption" class="lightbox__caption"></p>
           <div id="lightbox-tags" class="lightbox__tags"></div>

@@ -18,6 +18,8 @@
     repoLink: document.getElementById("repo-link"),
     lightbox: document.getElementById("lightbox"),
     lightboxImage: document.getElementById("lightbox-image"),
+    lightboxVideo: document.getElementById("lightbox-video"),
+    lightboxEmbed: document.getElementById("lightbox-embed"),
     lightboxCaption: document.getElementById("lightbox-caption"),
     lightboxTags: document.getElementById("lightbox-tags"),
     lightboxClose: document.getElementById("lightbox-close"),
@@ -37,6 +39,8 @@
    * @typedef {object} Photo
    * @property {string} id
    * @property {string} name
+   * @property {string} mimeType
+   * @property {boolean} isVideo
    * @property {string} description
    * @property {string} caption
    * @property {string[]} tags
@@ -131,6 +135,36 @@
   }
 
   /**
+   * Drive-generated thumbnail (works for images and videos).
+   * @param {string} fileId
+   * @param {number} size
+   */
+  function driveThumbUrl(fileId, size) {
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${size}`;
+  }
+
+  function drivePreviewUrl(fileId) {
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+  }
+
+  /**
+   * Streamable media URL for video playback (.MOV, MP4, etc.).
+   * @param {string} fileId
+   */
+  function driveMediaUrl(fileId) {
+    return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${encodeURIComponent(
+      config.googleApiKey || ""
+    )}`;
+  }
+
+  /**
+   * @param {string} mimeType
+   */
+  function isVideoMime(mimeType) {
+    return String(mimeType || "").startsWith("video/");
+  }
+
+  /**
    * Parse Drive EXIF / ISO timestamps into a Date.
    * Drive often returns EXIF as "YYYY:MM:DD HH:MM:SS" which many browsers
    * (notably Safari) reject unless converted to ISO-like form.
@@ -183,10 +217,9 @@
   async function fetchDrivePhotos() {
     const folderId = config.driveFolderId;
     const apiKey = config.googleApiKey;
-    const q = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`;
-    // Request EXIF time explicitly — this is when the photo was taken on the phone
+    const q = `'${folderId}' in parents and (mimeType contains 'image/' or mimeType contains 'video/') and trashed = false`;
     const fields =
-      "nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,description,imageMediaMetadata(time,width,height,rotation))";
+      "nextPageToken,files(id,name,mimeType,createdTime,modifiedTime,description,imageMediaMetadata(time,width,height,rotation),videoMediaMetadata)";
 
     /** @type {Photo[]} */
     const all = [];
@@ -217,15 +250,22 @@
 
       for (const file of data.files || []) {
         const { caption, tags } = parseDescription(file.description || "");
+        const video = isVideoMime(file.mimeType);
         all.push({
           id: file.id,
-          name: file.name || "Photo",
+          name: file.name || (video ? "Video" : "Photo"),
+          mimeType: file.mimeType || "",
+          isVideo: video,
           description: file.description || "",
           caption,
           tags,
           date: photoDate(file),
-          thumbUrl: driveImageUrl(file.id, 400),
-          fullUrl: driveImageUrl(file.id, 2000),
+          thumbUrl: video
+            ? driveThumbUrl(file.id, 400)
+            : driveImageUrl(file.id, 400),
+          fullUrl: video
+            ? driveMediaUrl(file.id)
+            : driveImageUrl(file.id, 2000),
         });
       }
 
@@ -398,7 +438,11 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "thumb";
-        btn.setAttribute("aria-label", photo.name);
+        if (photo.isVideo) btn.classList.add("thumb--video");
+        btn.setAttribute(
+          "aria-label",
+          photo.isVideo ? `Video: ${photo.name}` : photo.name
+        );
 
         const img = document.createElement("img");
         img.src = photo.thumbUrl;
@@ -411,14 +455,30 @@
         img.addEventListener(
           "error",
           () => {
+            // Fallback: Drive thumbnail endpoint if lh3 fails (or vice versa)
+            if (!img.dataset.fallback) {
+              img.dataset.fallback = "1";
+              img.src = driveThumbUrl(photo.id, 400);
+              return;
+            }
             img.classList.add("is-loaded");
             img.style.opacity = "0.35";
           },
-          { once: true }
+          { once: false }
         );
 
         btn.addEventListener("click", () => openLightbox(filteredIndex));
         btn.appendChild(img);
+
+        if (photo.isVideo) {
+          const badge = document.createElement("span");
+          badge.className = "thumb__play";
+          badge.setAttribute("aria-hidden", "true");
+          badge.innerHTML =
+            '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
+          btn.appendChild(badge);
+        }
+
         grid.appendChild(btn);
       }
 
@@ -473,7 +533,31 @@
     els.lightboxClose.focus();
   }
 
+  function stopLightboxVideo() {
+    const video = els.lightboxVideo;
+    if (video) {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      video.hidden = true;
+    }
+    if (els.lightboxEmbed) {
+      els.lightboxEmbed.removeAttribute("src");
+      els.lightboxEmbed.hidden = true;
+    }
+  }
+
+  function showVideoEmbed(fileId) {
+    els.lightboxVideo.hidden = true;
+    els.lightboxVideo.removeAttribute("src");
+    els.lightboxEmbed.hidden = false;
+    els.lightboxEmbed.src = drivePreviewUrl(fileId);
+  }
+
   function closeLightbox() {
+    stopLightboxVideo();
+    els.lightboxImage.removeAttribute("src");
+    els.lightboxImage.hidden = false;
     els.lightbox.hidden = true;
     document.body.style.overflow = "";
     lightboxIndex = -1;
@@ -484,8 +568,27 @@
     const photo = visible[lightboxIndex];
     if (!photo) return;
 
-    els.lightboxImage.src = photo.fullUrl;
-    els.lightboxImage.alt = photo.name;
+    stopLightboxVideo();
+
+    if (photo.isVideo) {
+      els.lightboxImage.hidden = true;
+      els.lightboxImage.removeAttribute("src");
+      els.lightboxEmbed.hidden = true;
+      els.lightboxVideo.hidden = false;
+      els.lightboxVideo.onerror = () => {
+        // .MOV/HEVC often fails in Chrome — fall back to Drive's player
+        showVideoEmbed(photo.id);
+      };
+      els.lightboxVideo.src = photo.fullUrl;
+      els.lightboxVideo.play().catch(() => {
+        /* autoplay may be blocked; controls still available */
+      });
+    } else {
+      els.lightboxImage.hidden = false;
+      els.lightboxImage.src = photo.fullUrl;
+      els.lightboxImage.alt = photo.name;
+    }
+
     els.lightboxCaption.textContent = photo.caption || "";
 
     els.lightboxTags.replaceChildren();
